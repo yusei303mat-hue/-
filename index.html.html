@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI日記 & 壁打ち相手「ひより」</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Identity Services (GSI) for Google Drive Sync -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght=300;400;500&family=Sawarabi+Gothic&display=swap');
+        
+        body {
+            font-family: 'Sawarabi Gothic', 'Kiwi Maru', sans-serif;
+            background-color: #fcfbfa; /* 温かみのある生成り色 */
+        }
+        .diary-paper {
+            background-image: radial-gradient(#e5e5e5 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fbf7f4',
+                            100: '#f5ebe3',
+                            200: '#ebd8cb',
+                            300: '#dbbeaa',
+                            400: '#c59d83',
+                            500: '#b48163',
+                            600: '#a67053',
+                            700: '#8a5b42',
+                            800: '#704a37',
+                            900: '#5c3e2f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="text-neutral-800 min-h-screen flex flex-col">
+
+    <!-- ヘッダー / ナビゲーション -->
+    <header class="bg-white border-b border-brand-100 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-full bg-brand-500 flex items-center justify-center text-white shadow-md">
+                    <i data-lucide="book-open" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-brand-900 leading-none">ひより</h1>
+                    <span class="text-xs text-brand-500">あなたの記憶と対話するAI日記</span>
+                </div>
+            </div>
+            
+            <!-- 同期ステータス ＆ API設定ボタン -->
+            <div class="flex items-center gap-2">
+                <button id="sync-header-btn" onclick="syncWithGoogleDrive()" class="hidden text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full font-bold flex items-center gap-1.5 transition-all">
+                    <i data-lucide="cloud-lightning" class="w-3.5 h-3.5"></i>
+                    <span id="sync-status-text">クラウド同期</span>
+                </button>
+                <button onclick="toggleApiModal()" class="text-neutral-500 hover:text-brand-700 p-2 rounded-full hover:bg-brand-50 transition-colors" title="設定 (API・クラウド同期)">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- タブナビゲーション -->
+        <div class="border-t border-neutral-100 bg-brand-50">
+            <div class="max-w-4xl mx-auto px-4 flex justify-around">
+                <button id="tab-write" onclick="switchTab('write')" class="flex-1 py-3 text-center border-b-2 border-brand-500 text-brand-600 font-bold flex items-center justify-center gap-2 transition-all">
+                    <i data-lucide="pen-tool" class="w-4 h-4"></i>
+                    <span>日記を書く</span>
+                </button>
+                <button id="tab-chat" onclick="switchTab('chat')" class="flex-1 py-3 text-center border-b-2 border-transparent text-neutral-500 hover:text-brand-600 flex items-center justify-center gap-2 transition-all">
+                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                    <span>ひよりと話す</span>
+                </button>
+                <button id="tab-history" onclick="switchTab('history')" class="flex-1 py-3 text-center border-b-2 border-transparent text-neutral-500 hover:text-brand-600 flex items-center justify-center gap-2 transition-all">
+                    <i data-lucide="calendar" class="w-4 h-4"></i>
+                    <span>過去の記録</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 pb-24">
+
+        <!-- ================= 日記を書く ＆ ダッシュボード画面 ================= -->
+        <section id="view-write" class="space-y-6">
+            
+            <!-- ひよりのタイムカプセル (Branch 5: UIリコール) -->
+            <div id="time-capsule-container" class="hidden bg-gradient-to-r from-brand-50 to-brand-100/50 border border-brand-200 rounded-2xl p-5 shadow-sm space-y-3 relative overflow-hidden">
+                <div class="absolute right-0 bottom-0 translate-y-3 translate-x-3 opacity-10 pointer-events-none">
+                    <i data-lucide="sparkles" class="w-32 h-32 text-brand-900"></i>
+                </div>
+                <div class="flex items-center gap-2 text-brand-800 font-bold text-sm">
+                    <i data-lucide="hourglass" class="w-4 h-4 text-brand-500 animate-spin" style="animation-duration: 10s"></i>
+                    <span>ひよりのタイムカプセル ── 過去のあなたの教訓</span>
+                </div>
+                <div id="time-capsule-content" class="text-neutral-700 text-sm leading-relaxed whitespace-pre-wrap pl-2 border-l-4 border-brand-400">
+                    <!-- 過去の日記や教訓が動的にセットされます -->
+                </div>
+                <div class="flex justify-between items-center pt-1 text-xs text-neutral-400">
+                    <span id="time-capsule-date">202X年X月X日の記録より</span>
+                    <button onclick="loadAnotherTimeCapsule()" class="text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1 transition-colors">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+                        <span>別の記憶を呼び出す</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 日記入力エリア -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-brand-100 diary-paper">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="calendar-days" class="text-brand-500 w-5 h-5"></i>
+                        <input type="date" id="diary-date" class="border border-neutral-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400 font-semibold text-neutral-700">
+                    </div>
+                    
+                    <!-- 気分設定 -->
+                    <div class="flex items-center gap-2 bg-brand-50 px-3 py-1.5 rounded-full border border-brand-100">
+                        <span class="text-xs font-semibold text-brand-700">今日の気分:</span>
+                        <div class="flex gap-1" id="mood-selector">
+                            <button onclick="setMood(1)" class="mood-btn text-lg grayscale hover:grayscale-0 transition-all filter" title="もやもや">😢</button>
+                            <button onclick="setMood(2)" class="mood-btn text-lg grayscale hover:grayscale-0 transition-all filter" title="まあまあ">😐</button>
+                            <button onclick="setMood(3)" class="mood-btn text-lg grayscale hover:grayscale-0 transition-all filter" title="普通">🙂</button>
+                            <button onclick="setMood(4)" class="mood-btn text-lg grayscale hover:grayscale-0 transition-all filter" title="良い感じ">😊</button>
+                            <button onclick="setMood(5)" class="mood-btn text-lg grayscale hover:grayscale-0 transition-all filter" title="最高！">😆</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タイトル -->
+                <div class="mb-4">
+                    <input type="text" id="diary-title" placeholder="今日の出来事にタイトルをつけるなら？（省略可）" class="w-full border-b border-neutral-100 py-2 focus:outline-none focus:border-brand-400 placeholder-neutral-400 text-lg font-medium">
+                </div>
+
+                <!-- 日記本文 -->
+                <div class="relative">
+                    <textarea id="diary-content" rows="10" placeholder="今日はどんなことがあった？ 何を感じた？&#10;箇条書きで「筋トレ 疲れた」「バグ直らずイライラ」のように単語を並べるだけでも大丈夫！下の「AIで日記を整える」を使えば、ひよりが綺麗な日記にリライトするよ。音声入力も使ってみてね。" class="w-full bg-transparent resize-none focus:outline-none text-neutral-700 leading-relaxed placeholder-neutral-400 py-2" style="line-height: 2rem; font-size: 1.05rem;"></textarea>
+                    
+                    <!-- 音声入力ボタン (Branch 2: 入力UX) -->
+                    <button id="voice-input-btn" onclick="toggleSpeechRecognition()" class="absolute right-2 bottom-2 bg-neutral-100 hover:bg-brand-100 text-neutral-500 hover:text-brand-700 p-2.5 rounded-full shadow-sm border border-neutral-200 hover:border-brand-300 transition-all" title="音声入力">
+                        <i id="voice-icon" data-lucide="mic" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- ボタンエリア -->
+                <div class="flex flex-wrap justify-between items-center gap-4 mt-6 pt-4 border-t border-neutral-100">
+                    <div class="flex items-center gap-3">
+                        <span id="char-count" class="text-xs text-neutral-400">0 文字</span>
+                        <!-- AIアシストボタン (Branch 2: 入力UX) -->
+                        <button onclick="polishDiaryWithAI()" class="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-all" title="箇条書きを綺麗な文章に整えます">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                            <span>AIで日記を整える</span>
+                        </button>
+                    </div>
+                    <button onclick="saveDiary()" class="bg-brand-500 hover:bg-brand-600 text-white font-bold px-6 py-2.5 rounded-full shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+                        <i data-lucide="check" class="w-5 h-5"></i>
+                        <span>日記を保存する</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ガイドメッセージ -->
+            <div class="bg-brand-50 border border-brand-100 rounded-xl p-4 flex gap-3 text-brand-800">
+                <i data-lucide="info" class="w-5 h-5 shrink-0 text-brand-500 mt-0.5"></i>
+                <div class="text-sm space-y-1">
+                    <p class="font-bold">ひよりからのアドバイス</p>
+                    <p class="text-neutral-600">「言葉にならないモヤモヤは、マイクボタンを押して口頭でぶちまけちゃおう！箇条書きだけ書いて『AIで日記を整える』をポチッとするだけでも大歓迎だよ。私が素敵な文章に変身させちゃうからね！」</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= AIチャット（振り返り）画面 ================= -->
+        <section id="view-chat" class="hidden flex flex-col h-[calc(100vh-14rem)] min-h-[450px]">
+            <!-- チャットエリアヘッダー -->
+            <div class="bg-white border border-brand-100 border-b-0 rounded-t-2xl p-4 flex flex-wrap justify-between items-center gap-2 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <div id="loading-pulse" class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+                    <span id="chat-header-status" class="font-semibold text-xs md:text-sm text-neutral-600">ひよりがいつでもあなたの記憶を検索します</span>
+                </div>
+                <!-- ハイブリッドプラン用の「要約生成」トリガー -->
+                <button onclick="generateMonthlySummary()" class="text-xs bg-brand-100 hover:bg-brand-200 text-brand-700 px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-all">
+                    <i data-lucide="award" class="w-3.5 h-3.5"></i>
+                    <span>月間要約を手動更新</span>
+                </button>
+            </div>
+
+            <!-- バックグラウンド検索状態インジケータ (Branch 4: インテリジェントRAG) -->
+            <div id="rag-indicator" class="hidden bg-neutral-50 border-x border-brand-100 px-4 py-2 text-xs text-brand-700 flex items-center gap-2 font-mono">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-brand-500 animate-bounce"></i>
+                <span id="rag-indicator-text">RAG検索を実行中...</span>
+            </div>
+
+            <!-- メッセージ履歴 -->
+            <div id="chat-messages" class="flex-grow bg-white border border-brand-100 overflow-y-auto p-4 space-y-4">
+                <!-- 初期メッセージ -->
+                <div class="flex gap-3 max-w-[85%]">
+                    <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shrink-0 font-bold">ひ</div>
+                    <div class="bg-neutral-100 text-neutral-800 rounded-2xl rounded-tl-none p-3 shadow-sm text-sm leading-relaxed">
+                        やっほー！あなたの壁打ち相手の「ひより」だよ。🌻<br>
+                        毎日忙しくて、本当に大事なことを見失いそうになってない？<br><br>
+                        これまでに書いてくれた日記や、ギュッと凝縮された月間要約から、あなたの「本当は大切にしたい決意や教訓」をいつでも引き出すよ。<br>
+                        「最近の俺、何が大事って言ってた？」とか、「あの時の失敗の教訓ってなんだっけ？」とか、なんでも聞いてね！
+                    </div>
+                </div>
+            </div>
+
+            <!-- 入力フォーム -->
+            <div class="bg-neutral-50 border border-brand-100 border-t-0 rounded-b-2xl p-3 flex gap-2">
+                <input type="text" id="chat-input" onkeypress="handleChatKeyPress(event)" placeholder="ひよりに質問する（例：最近大事にしたいことは何？）" class="flex-grow bg-white border border-neutral-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-400 text-sm">
+                <button onclick="sendChatMessage()" class="bg-brand-500 hover:bg-brand-600 text-white px-5 rounded-xl flex items-center justify-center shadow transition-all hover:shadow-md" id="send-btn">
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- ================= 過去の記録（一覧）画面 ================= -->
+        <section id="view-history" class="hidden space-y-4">
+            <!-- フィルター＆検索 -->
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-brand-100 flex flex-wrap items-center justify-between gap-4">
+                <div class="text-sm font-semibold text-neutral-600">
+                    記録された日記: <span id="history-count" class="text-brand-600 font-bold text-base">0</span> 件
+                </div>
+                <!-- 簡易検索 -->
+                <div class="relative w-full sm:w-64">
+                    <input type="text" id="search-input" oninput="renderHistory()" placeholder="日記を検索..." class="w-full bg-neutral-50 border border-neutral-200 rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                    <i data-lucide="search" class="w-4 h-4 text-neutral-400 absolute left-3 top-2.5"></i>
+                </div>
+            </div>
+
+            <!-- 月間要約カード（自動生成されたものがある場合に表示） -->
+            <div id="monthly-summaries-container" class="space-y-3">
+                <!-- 動的に生成 -->
+            </div>
+
+            <!-- 日記リスト -->
+            <div id="history-list" class="space-y-4">
+                <!-- 動的に履歴をレンダリング -->
+                <div class="text-center py-12 text-neutral-400 bg-white rounded-2xl border border-dashed border-neutral-200">
+                    <i data-lucide="pen-tool" class="w-12 h-12 mx-auto mb-3 opacity-45"></i>
+                    <p>日記がまだ1件もありません。今日の日記から書き始めてみましょう！</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- API設定 ＆ クラウド同期モーダル -->
+    <div id="api-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div class="flex justify-between items-center border-b border-neutral-100 pb-3">
+                <h3 class="font-bold text-lg text-neutral-800 flex items-center gap-2">
+                    <i data-lucide="settings" class="text-brand-500 w-5 h-5"></i>
+                    <span>システム設定</span>
+                </h3>
+                <button onclick="toggleApiModal()" class="text-neutral-400 hover:text-neutral-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <!-- タブ切り替え（Gemini vs Google Drive） -->
+            <div class="flex border-b border-neutral-200">
+                <button id="modal-tab-gemini" onclick="switchModalTab('gemini')" class="flex-1 py-2 text-sm font-bold border-b-2 border-brand-500 text-brand-600 text-center">
+                    Gemini API 設定
+                </button>
+                <button id="modal-tab-drive" onclick="switchModalTab('drive')" class="flex-1 py-2 text-sm font-bold border-b-2 border-transparent text-neutral-500 hover:text-brand-600 text-center">
+                    Google Drive 同期 (マルチデバイス)
+                </button>
+            </div>
+
+            <!-- Gemini API設定フォーム -->
+            <div id="modal-content-gemini" class="space-y-4">
+                <p class="text-xs text-neutral-500 leading-relaxed">
+                    安全な動作のために、ご自身の <strong>Gemini APIキー</strong> をご設定ください。キーはあなたのブラウザのみに保存され、外部のサーバーには送信されません。
+                </p>
+                <div>
+                    <label class="block text-xs font-bold text-neutral-500 mb-1">Gemini API Key</label>
+                    <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                </div>
+                <div class="text-xs text-neutral-400">
+                    ※ キーがない場合は、Google AI Studio で無料で即座に取得できます。
+                </div>
+            </div>
+
+            <!-- Google Drive同期フォーム (Branch 3) -->
+            <div id="modal-content-drive" class="space-y-4 hidden">
+                <p class="text-xs text-neutral-500 leading-relaxed">
+                    スマホや別のパソコンとデータを安全に同期します。データはあなた自身のGoogle Driveに <strong>hiyori_backup.json</strong> として非公開保存されるため、完全に安全です。
+                </p>
+                <div>
+                    <label class="block text-xs font-bold text-neutral-500 mb-1">Google OAuth クライアントID</label>
+                    <input type="text" id="google-client-id-input" placeholder="xxxxxx-xxxxxxxx.apps.googleusercontent.com" class="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                </div>
+                
+                <div class="bg-neutral-50 p-3 rounded-lg border border-neutral-200 space-y-2">
+                    <div class="text-xs font-bold text-neutral-600 flex items-center justify-between">
+                        <span>クラウド同期状況</span>
+                        <span id="gdrive-connection-badge" class="text-rose-500 font-mono">未連携</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="authorizeGoogleDrive()" class="flex-1 bg-white border border-brand-300 hover:bg-brand-50 text-neutral-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors">
+                            <i data-lucide="log-in" class="w-4 h-4 text-brand-500"></i>
+                            <span id="gdrive-btn-text">Googleアカウントと連携</span>
+                        </button>
+                        <button id="modal-sync-btn" onclick="syncWithGoogleDrive()" disabled class="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-neutral-200 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                            <span>今すぐ手動で同期する</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-[10px] text-neutral-400 leading-relaxed bg-neutral-50 p-2.5 rounded border border-neutral-100">
+                    <strong>設定手順：</strong><br>
+                    1. Google Cloud Console でプロジェクトを作成<br>
+                    2. Google Drive API を有効にする<br>
+                    3. OAuth 同意画面を設定し、認証情報の作成から「OAuth クライアント ID」(ウェブ アプリケーション) を取得<br>
+                    4. 「承認済みの JavaScript 生成元」に、あなたがこのHTMLを公開するURL (GitHub Pagesなど。ローカル検証なら <code>http://localhost</code> や <code>http://127.0.0.1</code>) を登録。
+                </div>
+            </div>
+
+            <!-- ボタンエリア -->
+            <div class="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+                <button onclick="toggleApiModal()" class="px-4 py-2 text-sm text-neutral-500 hover:bg-neutral-100 rounded-lg">キャンセル</button>
+                <button onclick="saveAllSettings()" class="px-5 py-2 text-sm bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-lg shadow-sm">設定を保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-neutral-800 text-white text-sm font-semibold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i data-lucide="info" class="w-4 h-4 text-brand-300"></i>
+        <span id="toast-message">メッセージ</span>
+    </div>
+
+    <!-- アプリ共通ロジック -->
+    <script>
+        // グローバル変数と初期設定
+        let currentTab = 'write';
+        let currentSelectedMood = 0;
+        let db = {
+            diaries: [],
+            summaries: []
+        };
+        const GEMINI_MODEL = 'gemini-2.5-flash-preview-09-2025';
+        
+        // Google OAuth / Drive API 用の変数
+        let googleAccessToken = null;
+        let tokenClient = null;
+
+        // 音声認識用 (Speech Recognition)
+        let recognition = null;
+        let isRecording = false;
+
+        // ページロード時の初期化
+        window.onload = function() {
+            lucide.createIcons();
+            
+            // LocalStorageからデータを読み込み
+            loadData();
+            
+            // 今日の日付をセット
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('diary-date').value = today;
+
+            // 日記文字数カウントの監視
+            const diaryTextarea = document.getElementById('diary-content');
+            diaryTextarea.addEventListener('input', function() {
+                document.getElementById('char-count').innerText = `${this.value.length} 文字`;
+            });
+
+            // 最初に日記を書く画面を表示
+            switchTab('write');
+
+            // APIキーの確認（ない場合は警告）
+            checkApiKey();
+            
+            // 初期の「ひより」からの挨拶を日記の状況に合わせて調整
+            initializeChatGreeting();
+
+            // タイムカプセルの描画
+            loadAnotherTimeCapsule();
+
+            // 音声認識の初期化
+            initSpeechRecognition();
+
+            // 保存済みのGoogle Client IDがあれば読み込む & GIS準備
+            const savedClientId = localStorage.getItem('hiyori_google_client_id');
+            if (savedClientId) {
+                document.getElementById('google-client-id-input').value = savedClientId;
+                initGoogleIdentityServices(savedClientId);
+            }
+        };
+
+        // ローカルデータの読み込み
+        function loadData() {
+            try {
+                const rawDiaries = localStorage.getItem('hiyori_diaries');
+                const rawSummaries = localStorage.getItem('hiyori_summaries');
+                
+                db.diaries = rawDiaries ? JSON.parse(rawDiaries) : [];
+                db.summaries = rawSummaries ? JSON.parse(rawSummaries) : [];
+                
+                // 日付降順でソート
+                db.diaries.sort((a, b) => new Date(b.date) - new Date(a.date));
+            } catch (e) {
+                showToast("データの読み込みに失敗しました。");
+                db.diaries = [];
+                db.summaries = [];
+            }
+        }
+
+        // ローカルデータの保存
+        function saveToLocalStorage() {
+            localStorage.setItem('hiyori_diaries', JSON.stringify(db.diaries));
+            localStorage.setItem('hiyori_summaries', JSON.stringify(db.summaries));
+        }
+
+        // タブの切り替え
+        function switchTab(tabId) {
+            currentTab = tabId;
+            
+            // 全ビューを非表示
+            document.getElementById('view-write').classList.add('hidden');
+            document.getElementById('view-chat').classList.add('hidden');
+            document.getElementById('view-history').classList.add('hidden');
+
+            // 全タブボタンのスタイルをリセット
+            const tabs = ['write', 'chat', 'history'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                btn.classList.remove('border-brand-500', 'text-brand-600', 'font-bold');
+                btn.classList.add('border-transparent', 'text-neutral-500');
+            });
+
+            // 選択されたタブの表示
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('border-transparent', 'text-neutral-500');
+            activeBtn.classList.add('border-brand-500', 'text-brand-600', 'font-bold');
+
+            // タブ特有の初期化処理
+            if (tabId === 'history') {
+                renderHistory();
+            } else if (tabId === 'write') {
+                // 自動で今日の日記をロード
+                loadDiaryForDate(document.getElementById('diary-date').value);
+                loadAnotherTimeCapsule(); // タイムカプセルの更新
+            }
+        }
+
+        // トースト通知を表示
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.innerText = message;
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // ================= モーダルタブ切り替え =================
+        function switchModalTab(tab) {
+            const tabGemini = document.getElementById('modal-tab-gemini');
+            const tabDrive = document.getElementById('modal-tab-drive');
+            const contentGemini = document.getElementById('modal-content-gemini');
+            const contentDrive = document.getElementById('modal-content-drive');
+
+            if (tab === 'gemini') {
+                tabGemini.classList.add('border-brand-500', 'text-brand-600');
+                tabGemini.classList.remove('border-transparent', 'text-neutral-500');
+                tabDrive.classList.remove('border-brand-500', 'text-brand-600');
+                tabDrive.classList.add('border-transparent', 'text-neutral-500');
+                
+                contentGemini.classList.remove('hidden');
+                contentDrive.classList.add('hidden');
+            } else {
+                tabDrive.classList.add('border-brand-500', 'text-brand-600');
+                tabDrive.classList.remove('border-transparent', 'text-neutral-500');
+                tabGemini.classList.remove('border-brand-500', 'text-brand-600');
+                tabGemini.classList.add('border-transparent', 'text-neutral-500');
+                
+                contentDrive.classList.remove('hidden');
+                contentGemini.classList.add('hidden');
+            }
+        }
+
+        // 設定の総合保存
+        function saveAllSettings() {
+            // Gemini 保存
+            const key = document.getElementById('api-key-input').value.trim();
+            if (key) {
+                localStorage.setItem('hiyori_api_key', key);
+            }
+
+            // Google Cloud Client ID 保存
+            const clientId = document.getElementById('google-client-id-input').value.trim();
+            if (clientId) {
+                const oldClientId = localStorage.getItem('hiyori_google_client_id');
+                localStorage.setItem('hiyori_google_client_id', clientId);
+                if (clientId !== oldClientId) {
+                    initGoogleIdentityServices(clientId);
+                }
+            } else {
+                localStorage.removeItem('hiyori_google_client_id');
+            }
+
+            toggleApiModal();
+            showToast("すべての設定を保存しました！");
+        }
+
+        // ================= 音声入力処理 (Branch 2: 入力UX) =================
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                // SpeechRecognition非対応ブラウザの場合、ボタンを非表示
+                document.getElementById('voice-input-btn').classList.add('hidden');
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'ja-JP';
+
+            recognition.onresult = function(event) {
+                const textarea = document.getElementById('diary-content');
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                if (finalTranscript) {
+                    // カーソルの位置にテキストを挿入するか、単に末尾に追加
+                    const textValue = textarea.value;
+                    const startPos = textarea.selectionStart;
+                    const endPos = textarea.selectionEnd;
+                    
+                    if (startPos !== undefined) {
+                        textarea.value = textValue.substring(0, startPos) + finalTranscript + textValue.substring(endPos);
+                        textarea.selectionStart = textarea.selectionEnd = startPos + finalTranscript.length;
+                    } else {
+                        textarea.value += finalTranscript;
+                    }
+                    document.getElementById('char-count').innerText = `${textarea.value.length} 文字`;
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error("音声認識エラー:", event.error);
+                stopRecordingState();
+                showToast(`音声入力エラー: ${event.error}`);
+            };
+
+            recognition.onend = function() {
+                if (isRecording) {
+                    // 予期せぬ切断の場合は再始動
+                    recognition.start();
+                }
+            };
+        }
+
+        function toggleSpeechRecognition() {
+            if (!recognition) {
+                showToast("このブラウザは音声入力に対応していません。");
+                return;
+            }
+
+            if (isRecording) {
+                isRecording = false;
+                recognition.stop();
+                stopRecordingState();
+                showToast("音声入力を停止しました。");
+            } else {
+                isRecording = true;
+                recognition.start();
+                startRecordingState();
+                showToast("音声聞き取り中... 話しかけてください。");
+            }
+        }
+
+        function startRecordingState() {
+            const btn = document.getElementById('voice-input-btn');
+            const icon = document.getElementById('voice-icon');
+            btn.classList.remove('bg-neutral-100', 'text-neutral-500');
+            btn.classList.add('bg-red-500', 'text-white', 'animate-pulse');
+            icon.setAttribute('data-lucide', 'mic-off');
+            lucide.createIcons();
+        }
+
+        function stopRecordingState() {
+            const btn = document.getElementById('voice-input-btn');
+            const icon = document.getElementById('voice-icon');
+            btn.classList.remove('bg-red-500', 'text-white', 'animate-pulse');
+            btn.classList.add('bg-neutral-100', 'text-neutral-500');
+            icon.setAttribute('data-lucide', 'mic');
+            lucide.createIcons();
+            isRecording = false;
+        }
+
+        // ================= AIによる日記整形 (Branch 2: 入力UX) =================
+
+        async function polishDiaryWithAI() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showToast("先にGemini APIキーを設定してください！");
+                toggleApiModal();
+                return;
+            }
+
+            const contentTextarea = document.getElementById('diary-content');
+            const currentText = contentTextarea.value.trim();
+
+            if (!currentText) {
+                showToast("まだ何も書かれていません。数語だけでも入力してください。");
+                return;
+            }
+
+            showToast("ひよりが日記を美しく整えています...");
+            const originalBtnText = "AIで日記を整える";
+
+            try {
+                const systemPrompt = `
+                あなたはユーザーに寄り添い、内省を深める日記アシスタント「ひより」です。
+                
+                【タスク】
+                ユーザーが入力した乱雑な文章や箇条書き、単発の言葉を読み取り、感情や情景、気づきが引き立つ「温かみのある日記」にリライトしてください。
+                
+                【ルール】
+                1. ユーザーのオリジナルの口調や一人称（例：俺、僕、私、自分）がある場合は、それを100%維持してください。
+                2. 大げさすぎる創作や、嘘の出来事を勝手に追加しないでください。あくまでユーザーの書いた事実をベースに、自然な文脈のつながり、感情表現、気づきの部分を補完する程度にしてください。
+                3. 出力は「日記の本文のみ」とし、余計な挨拶や解説（「整えました！」など）は一切含めないでください。
+                4. 口調は親しみやすく、かつ心に響くような、適度な柔らかさに整えてください。
+                `;
+
+                const promptText = `
+                以下は、私が今日書き留めたメモです。これを元に、綺麗で情緒豊かな1つの日記にリライトしてください。
+                
+                メモ：
+                "${currentText}"
+                `;
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: promptText }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                const data = await response.json();
+                const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+                if (replyText) {
+                    contentTextarea.value = replyText;
+                    document.getElementById('char-count').innerText = `${replyText.length} 文字`;
+                    showToast("日記の推敲が完了しました！");
+                } else {
+                    showToast("うまく整えられませんでした。もう一度試してみてね！");
+                }
+
+            } catch (error) {
+                console.error(error);
+                showToast(`エラーが発生しました: ${error.message}`);
+            }
+        }
+
+        // ================= Google Drive 同期 (Branch 3: ストレージとプライバシー) =================
+
+        function initGoogleIdentityServices(clientId) {
+            try {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: 'https://www.googleapis.com/auth/drive.file',
+                    callback: async (response) => {
+                        if (response.error !== undefined) {
+                            showToast(`Google認証エラー: ${response.error}`);
+                            return;
+                        }
+                        googleAccessToken = response.access_token;
+                        
+                        // 連携済みステータスに変更
+                        updateGDriveBadge(true);
+                        showToast("Googleアカウントと連携しました。今すぐ同期を実行できます。");
+                        
+                        // 初回自動同期を実行
+                        await syncWithGoogleDrive();
+                    },
+                });
+            } catch (e) {
+                console.error("GIS初期化エラー:", e);
+            }
+        }
+
+        function authorizeGoogleDrive() {
+            const clientId = document.getElementById('google-client-id-input').value.trim();
+            if (!clientId) {
+                showToast("先にGoogle OAuth クライアントIDを設定してください！");
+                switchModalTab('drive');
+                return;
+            }
+
+            if (!tokenClient) {
+                initGoogleIdentityServices(clientId);
+            }
+
+            // トークンのリクエスト（ポップアップ表示）
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        function updateGDriveBadge(connected) {
+            const badge = document.getElementById('gdrive-connection-badge');
+            const btnText = document.getElementById('gdrive-btn-text');
+            const syncBtn = document.getElementById('modal-sync-btn');
+            const headerBtn = document.getElementById('sync-header-btn');
+
+            if (connected) {
+                badge.innerText = "連携済み";
+                badge.classList.remove('text-rose-500');
+                badge.classList.add('text-emerald-500');
+                btnText.innerText = "連携を切り替え";
+                syncBtn.disabled = false;
+                headerBtn.classList.remove('hidden');
+            } else {
+                badge.innerText = "未連携";
+                badge.classList.remove('text-emerald-500');
+                badge.classList.add('text-rose-500');
+                btnText.innerText = "Googleアカウントと連携";
+                syncBtn.disabled = true;
+                headerBtn.classList.add('hidden');
+            }
+        }
+
+        async function syncWithGoogleDrive() {
+            if (!googleAccessToken) {
+                showToast("クラウド同期を実行するには、先にGoogle連携を行ってください。");
+                toggleApiModal();
+                switchModalTab('drive');
+                return;
+            }
+
+            showToast("Google Driveと同期中...");
+            const statusText = document.getElementById('sync-status-text');
+            if (statusText) statusText.innerText = "同期中...";
+
+            try {
+                // 1. ファイルを検索 (hiyori_backup.json)
+                const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='hiyori_backup.json'+and+trashed=false&fields=files(id)`;
+                const searchResponse = await fetch(searchUrl, {
+                    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                });
+                const searchResult = await searchResponse.json();
+                
+                let fileId = null;
+                let cloudData = { diaries: [], summaries: [] };
+
+                if (searchResult.files && searchResult.files.length > 0) {
+                    fileId = searchResult.files[0].id;
+                    
+                    // 2. クラウドにファイルがあればダウンロード
+                    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+                    const downloadResponse = await fetch(downloadUrl, {
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                    });
+                    
+                    if (downloadResponse.ok) {
+                        cloudData = await downloadResponse.json();
+                    }
+                }
+
+                // 3. ローカルデータとクラウドデータのマージ (相互差分更新)
+                // 各日記・要約のidごとに、updatedAt が新しい方を採用する
+                const mergedDiaries = mergeDataset(db.diaries, cloudData.diaries || []);
+                const mergedSummaries = mergeDataset(db.summaries, cloudData.summaries || []);
+
+                db.diaries = mergedDiaries;
+                db.summaries = mergedSummaries;
+                
+                // ローカルの並び替えと保存
+                db.diaries.sort((a, b) => new Date(b.date) - new Date(a.date));
+                saveToLocalStorage();
+
+                // 4. マージ後のデータをGoogle Driveへアップロード（上書き、または新規作成）
+                const boundary = 'foo_bar_baz';
+                const metadata = {
+                    name: 'hiyori_backup.json',
+                    mimeType: 'application/json'
+                };
+                const fileContent = JSON.stringify(db);
+
+                let uploadUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+                let method = 'POST';
+
+                if (fileId) {
+                    // 更新処理
+                    uploadUrl = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+                    method = 'PATCH';
+                }
+
+                const multipartBody = 
+                    `\r\n--${boundary}\r\n` +
+                    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+                    `${JSON.stringify(metadata)}\r\n` +
+                    `--${boundary}\r\n` +
+                    `Content-Type: application/json\r\n\r\n` +
+                    `${fileContent}\r\n` +
+                    `--${boundary}--`;
+
+                const uploadResponse = await fetch(uploadUrl, {
+                    method: method,
+                    headers: {
+                        'Authorization': `Bearer ${googleAccessToken}`,
+                        'Content-Type': `multipart/related; boundary=${boundary}`
+                    },
+                    body: multipartBody
+                });
+
+                if (uploadResponse.ok) {
+                    showToast("同期に成功しました！最新のデータが反映されました。");
+                    if (statusText) statusText.innerText = "同期完了";
+                    renderHistory();
+                    loadAnotherTimeCapsule();
+                } else {
+                    throw new Error("アップロードに失敗しました。");
+                }
+
+            } catch (e) {
+                console.error("同期失敗:", e);
+                showToast(`同期エラー: ${e.message}`);
+                if (statusText) statusText.innerText = "同期失敗";
+            }
+        }
+
+        // 差分マージ処理のヘルパー
+        function mergeDataset(localList, cloudList) {
+            const map = new Map();
+            // まずローカルデータを詰める
+            localList.forEach(item => map.set(item.id, item));
+            
+            // クラウドデータを比較しながら詰める
+            cloudList.forEach(cloudItem => {
+                const localItem = map.get(cloudItem.id);
+                if (!localItem) {
+                    map.set(cloudItem.id, cloudItem);
+                } else {
+                    // 両方にある場合は、updatedAtが新しい方を採用
+                    const localTime = new Date(localItem.updatedAt || 0).getTime();
+                    const cloudTime = new Date(cloudItem.updatedAt || 0).getTime();
+                    if (cloudTime > localTime) {
+                        map.set(cloudItem.id, cloudItem);
+                    }
+                }
+            });
+            return Array.from(map.values());
+        }
+
+        // ================= タイムカプセル (Branch 5: UIリコール) =================
+
+        function loadAnotherTimeCapsule() {
+            const container = document.getElementById('time-capsule-container');
+            const contentEl = document.getElementById('time-capsule-content');
+            const dateEl = document.getElementById('time-capsule-date');
+
+            // 過去の日記がなければ非表示
+            if (db.diaries.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            // 本日から3日以上前の古い日記のみをタイムカプセル対象にする
+            const todayTime = new Date().getTime();
+            const olderDiaries = db.diaries.filter(d => {
+                const diffDays = (todayTime - new Date(d.date).getTime()) / (1000 * 60 * 60 * 24);
+                return diffDays >= 3;
+            });
+
+            if (olderDiaries.length === 0) {
+                // 古い日記が足りなければ、今あるものを出す
+                olderDiaries.push(...db.diaries);
+            }
+
+            // ランダムに1件選択
+            const randomDiary = olderDiaries[Math.floor(Math.random() * olderDiaries.length)];
+            
+            // 日記の文章から教訓っぽい一文、または先頭を切り取る
+            let snippet = randomDiary.content;
+            if (snippet.length > 180) {
+                snippet = snippet.substring(0, 180) + "...";
+            }
+
+            container.classList.remove('hidden');
+            contentEl.innerText = snippet;
+            
+            const dateObj = new Date(randomDiary.date);
+            const formatDay = dateObj.toLocaleDateString('ja-JP', { weekday: 'short' });
+            dateEl.innerText = `${randomDiary.date.replace('-', '年 ').replace('-', '月 ')}日 (${formatDay}) の記録より`;
+        }
+
+        // ================= 特定の日付の日記を読み込む =================
+
+        function loadDiaryForDate(dateStr) {
+            const existingDiary = db.diaries.find(d => d.date === dateStr);
+            const titleInput = document.getElementById('diary-title');
+            const contentTextarea = document.getElementById('diary-content');
+
+            if (existingDiary) {
+                titleInput.value = existingDiary.title || '';
+                contentTextarea.value = existingDiary.content || '';
+                setMood(existingDiary.mood || 0);
+                document.getElementById('char-count').innerText = `${existingDiary.content.length} 文字`;
+            } else {
+                titleInput.value = '';
+                contentTextarea.value = '';
+                setMood(0);
+                document.getElementById('char-count').innerText = '0 文字';
+            }
+        }
+
+        // 日付が変更されたらロード
+        document.getElementById('diary-date').addEventListener('change', function() {
+            loadDiaryForDate(this.value);
+        });
+
+        // 日記の保存
+        function saveDiary() {
+            const dateStr = document.getElementById('diary-date').value;
+            const titleStr = document.getElementById('diary-title').value.trim();
+            const contentStr = document.getElementById('diary-content').value.trim();
+
+            if (!contentStr) {
+                showToast("日記の本文が空欄です。何か書いてみましょう！");
+                return;
+            }
+
+            const existingIndex = db.diaries.findIndex(d => d.date === dateStr);
+            const diaryData = {
+                id: existingIndex >= 0 ? db.diaries[existingIndex].id : crypto.randomUUID(),
+                date: dateStr,
+                title: titleStr,
+                content: contentStr,
+                mood: currentSelectedMood,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (existingIndex >= 0) {
+                db.diaries[existingIndex] = diaryData;
+            } else {
+                db.diaries.push(diaryData);
+            }
+
+            // ソート
+            db.diaries.sort((a, b) => new Date(b.date) - new Date(a.date));
+            saveToLocalStorage();
+            showToast("日記を安全に保存しました！");
+
+            // クラウド自動同期が有効ならバックグラウンド同期
+            if (googleAccessToken) {
+                syncWithGoogleDrive();
+            }
+
+            // 保存した後に月間要約が自動でアップデートできる状態を促す
+            triggerAutoSummaryCheck(dateStr);
+        }
+
+        // 気分選択
+        function setMood(moodValue) {
+            currentSelectedMood = moodValue;
+            const buttons = document.querySelectorAll('.mood-btn');
+            buttons.forEach((btn, index) => {
+                if (index + 1 === moodValue) {
+                    btn.classList.remove('grayscale');
+                    btn.classList.add('scale-125');
+                } else {
+                    btn.classList.add('grayscale');
+                    btn.classList.remove('scale-125');
+                }
+            });
+        }
+
+        // 特定の日記を削除
+        function deleteDiary(id) {
+            if (confirm("本当にこの日記を削除しますか？過去の思い出は戻せなくなります。")) {
+                db.diaries = db.diaries.filter(d => d.id !== id);
+                saveToLocalStorage();
+                renderHistory();
+                showToast("日記を削除しました。");
+
+                if (googleAccessToken) syncWithGoogleDrive();
+            }
+        }
+
+        // 過去の日記を編集するために書き込みタブに飛ばす
+        function editDiary(id) {
+            const diary = db.diaries.find(d => d.id === id);
+            if (diary) {
+                switchTab('write');
+                document.getElementById('diary-date').value = diary.date;
+                loadDiaryForDate(diary.date);
+            }
+        }
+
+        // ================= 履歴レンダリング =================
+
+        function renderHistory() {
+            const listContainer = document.getElementById('history-list');
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+            const filtered = db.diaries.filter(d => {
+                return d.content.toLowerCase().includes(searchVal) || 
+                       (d.title && d.title.toLowerCase().includes(searchVal)) ||
+                       d.date.includes(searchVal);
+            });
+
+            document.getElementById('history-count').innerText = filtered.length;
+            
+            // 月間要約カードの描画
+            renderMonthlySummaryCards();
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-12 text-neutral-400 bg-white rounded-2xl border border-dashed border-neutral-200">
+                        <i data-lucide="search-slash" class="w-12 h-12 mx-auto mb-3 opacity-45"></i>
+                        <p>条件に合う日記は見つかりませんでした。</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            const moodEmojis = ['', '😢', '😐', '🙂', '😊', '😆'];
+
+            listContainer.innerHTML = filtered.map(d => {
+                const dateObj = new Date(d.date);
+                const formatDay = dateObj.toLocaleDateString('ja-JP', { weekday: 'short' });
+                const dayStr = d.date.split('-')[2];
+                const yearMonthStr = d.date.substring(0, 7).replace('-', '年 ') + '月';
+
+                return `
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-brand-100 hover:shadow-md transition-all space-y-3">
+                        <div class="flex items-center justify-between border-b border-neutral-50 pb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl font-bold text-brand-600 font-serif">${dayStr}</span>
+                                <div class="text-left leading-none">
+                                    <span class="text-xs text-neutral-400 block">${yearMonthStr} (${formatDay})</span>
+                                    ${d.title ? `<span class="font-bold text-sm text-neutral-700 block mt-1">${escapeHtml(d.title)}</span>` : '<span class="text-xs italic text-neutral-300">タイトルなし</span>'}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${d.mood ? `<span class="bg-neutral-50 px-2 py-1 rounded-full text-sm border border-neutral-100">${moodEmojis[d.mood]}</span>` : ''}
+                                <button onclick="editDiary('${d.id}')" class="p-1.5 text-neutral-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="編集">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deleteDiary('${d.id}')" class="p-1.5 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="削除">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-neutral-600 text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(d.content)}</p>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // ================= 月間要約カードのレンダリング =================
+
+        function renderMonthlySummaryCards() {
+            const container = document.getElementById('monthly-summaries-container');
+            if (db.summaries.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-brand-50 border border-brand-200 rounded-xl p-4 space-y-3">
+                    <h4 class="font-bold text-xs text-brand-800 flex items-center gap-1.5 uppercase tracking-wider">
+                        <i data-lucide="award" class="w-4 h-4"></i>
+                        <span>AIが生成した月間の軌跡と要約</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        ${db.summaries.map(s => `
+                            <div class="bg-white rounded-lg p-3 border border-brand-100 shadow-2xs space-y-1">
+                                <div class="flex justify-between items-center border-b border-neutral-50 pb-1">
+                                    <span class="text-xs font-bold text-brand-800">${s.year}年 ${s.month}月のまとめ</span>
+                                    <button onclick="deleteSummary('${s.id}')" class="text-neutral-400 hover:text-red-500 text-xs">削除</button>
+                                </div>
+                                <p class="text-neutral-600 text-xs leading-relaxed">${escapeHtml(s.summary)}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function deleteSummary(id) {
+            if (confirm("この月の要約を削除しますか？（再生成はいつでも可能です）")) {
+                db.summaries = db.summaries.filter(s => s.id !== id);
+                saveToLocalStorage();
+                renderHistory();
+                showToast("月間要約を削除しました。");
+
+                if (googleAccessToken) syncWithGoogleDrive();
+            }
+        }
+
+        // ================= AI壁打ちチャットのコアロジック (Branch 4: インテリジェントRAG) =================
+
+        function checkApiKey() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showToast("Gemini APIキーを設定してください。");
+                setTimeout(() => toggleApiModal(), 1000);
+            }
+        }
+
+        // APIキーの取得
+        function getApiKey() {
+            return localStorage.getItem('hiyori_api_key') || "";
+        }
+
+        function toggleApiModal() {
+            const modal = document.getElementById('api-modal');
+            const input = document.getElementById('api-key-input');
+            input.value = getApiKey();
+            modal.classList.toggle('hidden');
+        }
+
+        // 初期のチャットボックスの言葉
+        function initializeChatGreeting() {
+            const msgBox = document.getElementById('chat-messages');
+            if (db.diaries.length > 0) {
+                const latest = db.diaries[0];
+                msgBox.innerHTML = `
+                    <div class="flex gap-3 max-w-[85%]">
+                        <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shrink-0 font-bold">ひ</div>
+                        <div class="bg-neutral-100 text-neutral-800 rounded-2xl rounded-tl-none p-3 shadow-sm text-sm leading-relaxed">
+                            やっほー！今日はどうした？🌻<br>
+                            最後に書いてくれたのは <strong>${latest.date}</strong> の日記だね。<br><br>
+                            今は ${db.diaries.length}件 の日記と、${db.summaries.length}件の月間要約を覚えているよ！<br>
+                            何について壁打ちをしようか？<br>
+                            「最近の俺の悩み傾向は？」とか、「目標へのやる気ってどうなってる？」とか何でも聞いてね！
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 指数バックオフ付きのFetch関数
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) {
+                        return response;
+                    }
+                    if (response.status === 429 || response.status >= 500) {
+                        // 自動リトライ
+                    } else {
+                        throw new Error(`HTTPエラー。ステータスコード: ${response.status}`);
+                    }
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 2;
+            }
+            throw new Error("何度も接続を試みましたが、エラーが発生しました。");
+        }
+
+        // チャット送信 (スマートRAG処理搭載)
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const messageText = input.value.trim();
+            if (!messageText) return;
+
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showToast("先にAPIキーを設定してください！");
+                toggleApiModal();
+                return;
+            }
+
+            // ユーザーの発言を画面に描画
+            appendMessage('user', messageText);
+            input.value = '';
+
+            // ローディングインジケータを表示
+            const loadingId = appendMessage('system_loading', 'ひよりが考えています...');
+            
+            try {
+                // RAG検索開始インジケータの表示
+                const ragIndicator = document.getElementById('rag-indicator');
+                const ragText = document.getElementById('rag-indicator-text');
+                
+                ragIndicator.classList.remove('hidden');
+                ragText.innerText = "🔍 過去の月間要約 ＆ 質問に関連する過去ログを分析中...";
+
+                // スマートコンテキスト生成 (Branch 4)
+                const { contextText, retrievedSources } = prepareSmartContext(messageText);
+
+                if (retrievedSources && retrievedSources.length > 0) {
+                    ragText.innerText = `🎯 参照中: [${retrievedSources.join('] [')}]`;
+                    setTimeout(() => ragIndicator.classList.add('hidden'), 5000);
+                } else {
+                    ragIndicator.classList.add('hidden');
+                }
+
+                // ひよりのパーソナリティ・システムプロンプト
+                const systemPrompt = `
+                あなたの名前は「ひより」。ユーザーの日記を蓄積して客観的に分析し、寄り添いながら「ハッとする気づき」を促す壁打ち相手（コーチ・親友のような存在）です。
+                
+                【ペルソナ・口調】
+                - 明るく、親密で、温かみのあるフランクな口調（「〜だよ」「〜じゃん」「〜だね」など）。
+                - 相手を否定せず、深く共感する。
+                - しかし、単なるお世辞ではなく、提供される過去のコンテキストから「最近こういう傾向があるよ」「前にこんな失敗を教訓にしてたけど、今は大丈夫？」と、ユーザーが忘れてしまいがちな価値観や決意をシャープに優しく突いてあげる。
+                
+                【タスク】
+                - 提供されるコンテキスト（日記データや、作成済みの月間要約）を丁寧に読み取り、ユーザーからの質問に答えてください。
+                - ユーザーが人生で「忘れたくない大事なこと」「教訓」「熱い想い」「目標」について聞いてきた場合、必ず日付や状況を引用しながら、客観的に要約して指摘してください。
+                - もし日記データがまだ少なくて判断がつかない場合は、「まだ日記が少ないからもっと色々おしゃべりして教えてね！」と親切に伝えてください。
+                - 回答にはマークダウンを活用し、太字やリスト、改行を適度に使って、圧倒的に読みやすく、心に刺さるトーンを心がけてください。
+                `;
+
+                // プロンプトを組み立てる
+                const promptText = `
+                以下は、私が日々書き留めた【日記データ（直近および検索によってピンポイント召喚された過去ログ）】と【これまでのすべての月間要約】です。
+                
+                -----------------------------
+                ${contextText}
+                -----------------------------
+                
+                上記の私の人生の記録を前提として、以下の質問に、あなたのキャラクター「ひより」として深く答えてください。
+                
+                私の質問: "${messageText}"
+                `;
+
+                // Gemini APIの呼び出し
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: promptText }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                const data = await response.json();
+                const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                // ローディングを削除して、AIの返信を描画
+                removeMessage(loadingId);
+                
+                if (replyText) {
+                    appendMessage('ai', replyText);
+                } else {
+                    appendMessage('ai', "うーん、うまく言葉がまとまらなかったみたい。もう一度話しかけてみて！");
+                }
+
+            } catch (error) {
+                console.error(error);
+                removeMessage(loadingId);
+                appendMessage('ai', `ごめんね、エラーが起きちゃった。APIキーが正しいか、通信状態が良いか確認してみてほしいな。 (エラー詳細: ${error.message})`);
+            }
+        }
+
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendChatMessage();
+            }
+        }
+
+        // インテリジェントコンテキスト生成 (Branch 4)
+        // 「すべての月間要約」＋「直近2週間分の生日記」＋「質問に関連性の高い過去ログ」に絞る
+        function prepareSmartContext(userQuery) {
+            if (db.diaries.length === 0) {
+                return { contextText: "[日記データはまだ1件もありません。]", retrievedSources: [] };
+            }
+
+            const queryKeywords = extractKeywords(userQuery);
+            const retrievedDiaries = [];
+            const retrievedSources = [];
+
+            // 1. 直近2週間(14日)の日記をデフォルトコンテキストにする
+            const todayTime = new Date().getTime();
+            const recentDiaries = db.diaries.filter(d => {
+                const diffDays = (todayTime - new Date(d.date).getTime()) / (1000 * 60 * 60 * 24);
+                return diffDays <= 14;
+            });
+            recentDiaries.forEach(d => {
+                retrievedDiaries.push(d);
+            });
+
+            // 2. クエリワードに基づく関連過去ログ検索 (簡易キーワード検索)
+            if (queryKeywords.length > 0) {
+                const searchPool = db.diaries.filter(d => {
+                    // すでに直近に入っているものは避ける
+                    return !recentDiaries.some(rd => rd.id === d.id);
+                });
+
+                // 各過去ログとのマッチングスコアを算出
+                const scored = searchPool.map(d => {
+                    let score = 0;
+                    const contentLower = d.content.toLowerCase();
+                    const titleLower = (d.title || "").toLowerCase();
+                    
+                    queryKeywords.forEach(word => {
+                        if (contentLower.includes(word)) score += 1;
+                        if (titleLower.includes(word)) score += 2; // タイトル一致は重み付け
+                    });
+                    return { diary: d, score: score };
+                }).filter(s => s.score > 0);
+
+                // スコア順にソートし、最大3件を召喚
+                scored.sort((a, b) => b.score - a.score);
+                const matchedCount = Math.min(scored.length, 3);
+                for (let i = 0; i < matchedCount; i++) {
+                    retrievedDiaries.push(scored[i].diary);
+                    retrievedSources.push(`${scored[i].diary.date}「${scored[i].diary.title || '教訓'}」`);
+                }
+            }
+
+            // 日付順にソートし直す
+            retrievedDiaries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // コンテキスト文字列の構築
+            let text = "【日記データ (抜粋・最新順)】\n";
+            retrievedDiaries.forEach(d => {
+                const moodText = d.mood ? ` (気分: ${d.mood}/5)` : '';
+                text += `■ 日付: ${d.date}${moodText}\n`;
+                if (d.title) text += `  タイトル: ${d.title}\n`;
+                text += `  内容: ${d.content}\n`;
+                text += `-----------------\n`;
+            });
+
+            if (db.summaries.length > 0) {
+                text += "\n【月間要約データ (全期間)】\n";
+                db.summaries.forEach(s => {
+                    text += `■ ${s.year}年 ${s.month}月の要約: ${s.summary}\n`;
+                });
+            }
+
+            return { contextText: text, retrievedSources: retrievedSources };
+        }
+
+        // 日本語簡易キーワード抽出 (助詞・助動詞を簡易的に除外)
+        function extractKeywords(query) {
+            const cleanQuery = query.replace(/[?？!！,./()]/g, " ");
+            const words = cleanQuery.split(/\s+/);
+            const stopWords = ['は', 'が', 'を', 'に', 'の', 'と', 'も', 'で', 'や', 'から', 'だ', 'です', 'ます', 'する', 'した', 'こと', 'もの', '最近', 'おれ', '俺', '僕', '何', 'だっけ', '教訓', '日記', 'ひより'];
+            
+            return words.map(w => w.trim()).filter(w => {
+                return w.length > 1 && !stopWords.includes(w.toLowerCase());
+            });
+        }
+
+        // チャット画面へのメッセージ追加
+        function appendMessage(sender, text) {
+            const msgBox = document.getElementById('chat-messages');
+            const messageId = "msg-" + crypto.randomUUID();
+            
+            let html = '';
+            if (sender === 'user') {
+                html = `
+                    <div class="flex gap-3 justify-end ml-auto max-w-[85%]" id="${messageId}">
+                        <div class="bg-brand-500 text-white rounded-2xl rounded-tr-none p-3 shadow-sm text-sm leading-relaxed">
+                            ${escapeHtml(text)}
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-neutral-300 text-neutral-600 flex items-center justify-center text-xs shrink-0 font-bold">俺</div>
+                    </div>
+                `;
+            } else if (sender === 'ai') {
+                const formattedText = parseMarkdown(text);
+                html = `
+                    <div class="flex gap-3 max-w-[85%]" id="${messageId}">
+                        <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center text-sm shrink-0 font-bold">ひ</div>
+                        <div class="bg-brand-50 border border-brand-100 text-neutral-800 rounded-2xl rounded-tl-none p-3 shadow-sm text-sm leading-relaxed">
+                            ${formattedText}
+                        </div>
+                    </div>
+                `;
+            } else if (sender === 'system_loading') {
+                html = `
+                    <div class="flex gap-3 max-w-[85%] items-center animate-pulse" id="${messageId}">
+                        <div class="w-8 h-8 rounded-full bg-brand-300 text-white flex items-center justify-center text-sm shrink-0 font-bold">ひ</div>
+                        <div class="bg-neutral-100 text-neutral-500 rounded-2xl rounded-tl-none p-3 text-xs italic">
+                            <span class="inline-block w-2 h-2 rounded-full bg-brand-400 animate-bounce" style="animation-delay: 0.1s"></span>
+                            <span class="inline-block w-2 h-2 rounded-full bg-brand-400 animate-bounce" style="animation-delay: 0.2s"></span>
+                            <span class="inline-block w-2 h-2 rounded-full bg-brand-400 animate-bounce" style="animation-delay: 0.3s"></span>
+                            ${escapeHtml(text)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            msgBox.innerHTML += html;
+            msgBox.scrollTop = msgBox.scrollHeight;
+            return messageId;
+        }
+
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // ================= 月間要約の自動/手動生成 =================
+
+        async function generateMonthlySummary() {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                showToast("APIキーを先に設定してください！");
+                toggleApiModal();
+                return;
+            }
+
+            if (db.diaries.length === 0) {
+                showToast("要約するための日記がまだありません！まずは日記を書きましょう。");
+                return;
+            }
+
+            // 直近の日記がある月を1つ選んで要約を作成
+            const monthsInDiaries = [...new Set(db.diaries.map(d => d.date.substring(0, 7)))];
+            
+            if (monthsInDiaries.length === 0) return;
+
+            const targetMonth = monthsInDiaries[0];
+            const [year, month] = targetMonth.split('-');
+
+            const targetDiaries = db.diaries.filter(d => d.date.startsWith(targetMonth));
+            if (targetDiaries.length === 0) return;
+
+            showToast(`${year}年${month}月の日記から、ハイブリッド要約を作成中...`);
+
+            try {
+                let diariesText = "";
+                targetDiaries.forEach(d => {
+                    diariesText += `■日付: ${d.date}\nタイトル: ${d.title || 'なし'}\n内容: ${d.content}\n-----------------\n`;
+                });
+
+                const systemPrompt = "あなたは客観的で冷静、かつ温かい目線を持つ優秀なデータアナリスト兼ライフコーチです。";
+                const promptText = `
+                以下は、私が書き留めた ${year}年 ${month}月 の日記です。
+                
+                -----------------------------
+                ${diariesText}
+                -----------------------------
+                
+                これらの日記から、私が今月「一番大切だと感じた価値観」「身につけた教訓・気づき」「決意した目標」を
+                100文字〜150文字程度の短い文章でぎゅっと要約してください。
+                客観的でありながらも、読むと勇気が出るような表現にしてください。箇条書きではなく一つの段落にまとめてください。
+                `;
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: promptText }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                const data = await response.json();
+                const summaryText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+                if (summaryText) {
+                    const existingIndex = db.summaries.findIndex(s => s.year === year && s.month === month);
+                    const summaryData = {
+                        id: existingIndex >= 0 ? db.summaries[existingIndex].id : crypto.randomUUID(),
+                        year: year,
+                        month: month,
+                        summary: summaryText,
+                        updatedAt: new Date().toISOString()
+                    };
+
+                    if (existingIndex >= 0) {
+                        db.summaries[existingIndex] = summaryData;
+                    } else {
+                        db.summaries.push(summaryData);
+                    }
+
+                    saveToLocalStorage();
+                    showToast(`${year}年${month}月の要約を更新しました！`);
+                    renderHistory();
+
+                    if (googleAccessToken) syncWithGoogleDrive();
+                }
+
+            } catch (error) {
+                console.error(error);
+                showToast(`要約生成エラー: ${error.message}`);
+            }
+        }
+
+        function triggerAutoSummaryCheck(dateStr) {
+            const [year, month] = dateStr.split('-');
+            const hasSummary = db.summaries.some(s => s.year === year && s.month === month);
+            
+            const monthlyCount = db.diaries.filter(d => d.date.startsWith(`${year}-${month}`)).length;
+            if (!hasSummary && monthlyCount >= 3) {
+                setTimeout(() => {
+                    if (confirm(`${year}年${month}月の日記が${monthlyCount}件たまりました！AIにこの月の要約を作らせますか？作成すると、チャットでの過去の振り返り精度がアップします。`)) {
+                        generateMonthlySummary();
+                    }
+                }, 1000);
+            }
+        }
+
+        // ================= ユーティリティ関数 =================
+
+        function escapeHtml(string) {
+            if (typeof string !== 'string') return '';
+            return string.replace(/[&<>"']/g, function(match) {
+                const escape = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#x27;'
+                };
+                return escape[match];
+            });
+        }
+
+        function parseMarkdown(text) {
+            let html = escapeHtml(text);
+            html = html.replace(/\n/g, '<br>');
+            html = html.replace(/\*\*(.*?)\*\"/g, '<strong class="font-bold text-brand-900 bg-brand-100/50 px-1 rounded">$1</strong>');
+            html = html.replace(/^- (.*?)(<br>|$)/gm, '<li class="list-disc list-inside ml-2 text-neutral-700">$1</li>');
+            html = html.replace(/^・ (.*?)(<br>|$)/gm, '<li class="list-disc list-inside ml-2 text-neutral-700">$1</li>');
+            return html;
+        }
+    </script>
+</body>
+</html>

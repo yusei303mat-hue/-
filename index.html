@@ -1002,17 +1002,22 @@
         }
 
         // 特定の日記を削除
-        function deleteDiary(id) {
-            if (confirm("本当にこの日記を削除しますか？過去の思い出は戻せなくなります。")) {
-                db.diaries = db.diaries.filter(d => d.id !== id);
-                saveToLocalStorage();
-                renderHistory();
-                showToast("日記を削除しました。");
+function deleteDiary(id) {
+    if (confirm("本当にこの日記を削除しますか？過去の思い出は戻せなくなります。")) {
+        // 1. まず手元のブラウザから日記を消す
+        db.diaries = db.diaries.filter(d => d.id !== id);
+        saveToLocalStorage();
+        renderHistory();
 
-                if (googleAccessToken) syncWithGoogleDrive();
-            }
+        // 2. Google Drive側も最新状態に上書き同期する（通知の重複を解消）
+        if (googleAccessToken) {
+            showToast("手元の日記を削除しました。クラウド同期中...");
+            syncWithGoogleDrive();
+        } else {
+            showToast("日記を削除しました。");
         }
-
+    }
+}
         // 過去の日記を編集するために書き込みタブに飛ばす
         function editDiary(id) {
             const diary = db.diaries.find(d => d.id === id);
